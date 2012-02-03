@@ -21,10 +21,22 @@ class Task(object):
 		self.depends = depends
 		self.default = default
 		self.help = help
+		self.options = []
 
 	def __call__(self, func):
+		subparser = pake.app.subparser
+		if isinstance(func, Option):
+			self.options = func.options
+			func = func.func
+
 		if self.target is None:
 			self.target = func.__name__
+
+		if self.help is None:
+			self.help = self.target
+		self.parser = subparser.add_parser(self.target, help=self.help)
+		for args, kwargs in self.options:
+			self.parser.add_argument(*args, **kwargs)
 
 		helper = partial(func, self.depends, self.target)
 		self.func = wraps(func)(helper)
@@ -33,6 +45,24 @@ class Task(object):
 
 def task(*args, **kwargs):
 	return Task(*args, **kwargs)
+
+class Option(object):
+	def __init__(self, *args, **kwargs):
+		self.args = (args, kwargs)
+
+	def __call__(self, func):
+		if isinstance(func, Option):
+			func.options.append(self.args)
+			func = func.func
+		else:
+			func.options = [self.args]
+
+		self.options = func.options
+		self.func = func
+		return self
+
+def option(*args, **kwargs):
+	return Option(*args, **kwargs)
 
 class PakefileNode(object):
 	def __init__(self, path, parent=None):
@@ -54,9 +84,7 @@ class PakefileNode(object):
 		self.__children.append(node)
 
 	def add_task(self, task):
-		help = task.help if task.help is not None else task.target
 		target = task.target
-		pake.app.subparser.add_parser(target, help=help)
 		self.__tasks[target] = task
 		if task.default:
 			self.default = target
@@ -69,13 +97,15 @@ class PakefileNode(object):
 				return t
 			node = node.parent
 
-	def run_task(self, target):
+	def run_task(self, target, argv):
 		task = self.find_task(target)
 		func = task.func
 		depends = task.depends
 		for d in depends:
 			self.run(depend)
-		func()
+		args, argv = task.parser.parse_known_args(argv)
+		kwargs = args.__dict__
+		func(**kwargs)
 
 	def is_root(self):
 		return self.parent == None
@@ -124,13 +154,17 @@ class Application(object):
 		if not os.path.exists(path):
 			raise PakeError('File "%s" is not exists' % path)
 		directory, file = os.path.split(path)
+
 		if pakefile.is_root():
 			self.directory = directory
 			if len(self.argv) == 0:
 				target = pakefile.default
 			else:
-				self.args, self.argv = parser.parse_known_args(self.argv, self.args)
-				target = self.args.target
+				# get the target name in cmd arguments, fake parse
+				args, argv = parser.parse_known_args(self.argv, self.args)
+				#task_kwargs = self.args.__dict__
+				target = args.target
+				#task_kwargs.pop('target')
 		else:
 			if target is None:
 				target = pakefile.default
@@ -140,7 +174,7 @@ class Application(object):
 		pake.log.info("-"*70)
 		pake.log.info(">> %s" % directory)
 
-		pakefile.run_task(target)
+		pakefile.run_task(target, self.argv)
 
 		pake.log.info("<< %s" % directory)
 		pake.log.info("*"*70)

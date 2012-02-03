@@ -2,10 +2,12 @@ import os
 from pake import pakefile
 
 @task()
-def test(depends, target):
-	print depends
+@option('-t', '--too')
+@option('-b', '--baz')
+def test(depends, target, too, baz):
+	print depends, target
 	cd("src")
-	print target
+	print too, baz
 #from pake import cc, task, cd
 #
 #src = ['hello.c', 'main.c']

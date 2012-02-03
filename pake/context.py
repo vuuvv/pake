@@ -3,7 +3,7 @@ from imp import new_module
 from functools import partial
 
 from pake import PakeError
-from pake.core import task, PakefileNode
+from pake.core import task, option, PakefileNode
 from pake.local import LocalStack, LocalProxy
 
 def has_pakefile_context():
@@ -21,6 +21,7 @@ class PakefileContext(object):
 		d = new_module('pakefile')
 		d.__file__ = path
 		d.task = task
+		d.option = option
 		d.cd = app.cd
 		#d.task_manager = task_manager
 		try:
