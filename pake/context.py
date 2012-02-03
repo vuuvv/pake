@@ -3,24 +3,25 @@ from imp import new_module
 from functools import partial
 
 from pake import PakeError
-from pake.core import task, task_manager
+from pake.core import task, PakefileNode
 from pake.local import LocalStack, LocalProxy
 
 def has_pakefile_context():
 	return _pakefile_ctx_stack.top is not None
 
 class PakefileContext(object):
-	def __init__(self, path):
-		self.pakefile = self.load_module(path)
-		self.path = path
+	def __init__(self, app, path, parent=None):
+		self.pakefile = PakefileNode(path, parent)
+		self.app = app
 
-	def load_module(self, path):
+	def _load_module(self, path):
 		"""
 		Load module the path specified.
 		"""
 		d = new_module('pakefile')
 		d.__file__ = path
 		d.task = task
+		d.cd = app.cd
 		#d.task_manager = task_manager
 		try:
 			execfile(path, d.__dict__)
@@ -31,6 +32,7 @@ class PakefileContext(object):
 
 	def __enter__(self):
 		_pakefile_ctx_stack.push(self)
+		self.pakefile.module = self._load_module(self.pakefile.path)
 		return self
 
 	def __exit__(self, exc_type, exc_value, tb):
@@ -47,4 +49,5 @@ def _lookup_object(name):
 
 _pakefile_ctx_stack = LocalStack()
 pakefile = LocalProxy(partial(_lookup_object, 'pakefile'))
+app = LocalProxy(partial(_lookup_object, 'app'))
 

@@ -2,6 +2,13 @@
 Python Makefile System
 """
 
+import os
+import sys
+import argparse
+
+from functools import wraps, partial
+from gettext import gettext as _
+
 import pake
 
 class Task(object):
@@ -21,35 +28,131 @@ class Task(object):
 
 		helper = partial(func, self.depends, self.target)
 		self.func = wraps(func)(helper)
-		task_manager.add(func)
+		pake.pakefile.add_task(self)
 		return self.target
-
-	def arg_func(self, target, func, depends, default):
-		help = self.help if self.help is not None else target
-		parser = loader.subparser.add_parser(target, help=help)
-		return func, depends, default
 
 def task(*args, **kwargs):
 	return Task(*args, **kwargs)
 
-class TasksNode(object):
-	def __init__(self, parent=None):
-		self.parent = parent
-		self.children = []
-		self.tasks = {}
+class PakefileNode(object):
+	def __init__(self, path, parent=None):
+		self.__children = []
+		self.__tasks = {}
+		self.module = None
+		self.default = None
+		self.path = os.path.abspath(path)
+		if parent is not None:
+			parent.add_child(self)
+		else:
+			self.parent = parent
 
-	def add_task(self, task):
-		self.tasks[task.target] = task
+	def __getattr__(self, name):
+		return getattr(self.module, name)
 
 	def add_child(self, node):
-		self.children.append(node)
+		node.parent = self
+		self.__children.append(node)
 
-class TaskManager(object):
+	def add_task(self, task):
+		help = task.help if task.help is not None else task.target
+		target = task.target
+		pake.app.subparser.add_parser(target, help=help)
+		self.__tasks[target] = task
+		if task.default:
+			self.default = target
+
+	def find_task(self, target):
+		node = self
+		while node is not None:
+			t = self.__tasks.get(target, None)
+			if t is not None:
+				return t
+			node = node.parent
+
+	def run_task(self, target):
+		task = self.find_task(target)
+		func = task.func
+		depends = task.depends
+		for d in depends:
+			self.run(depend)
+		func()
+
+	def is_root(self):
+		return self.parent == None
+
+class Application(object):
 	def __init__(self):
-		self.node = TaskNode()
+		self._arg_parser = None
+		self.argv = sys.argv[1:]
+		self.args = None
+		self.directory = None
 
-task_manager = TaskManager()
+	@property
+	def arg_parser(self):
+		if self._arg_parser is None:
+			parser = argparse.ArgumentParser(
+					description="Python Makefile System", 
+					prog="pake", add_help=False)
+			parser.add_argument(
+					'-f', '--file', 
+					type=str, default=pake.PAKEFILE_NAME, 
+					help='specified a pakefile')
+			parser.add_argument(
+					'-v', '--verbose', 
+					type=int, choices=[0, 1, 2], default=1)
+			self._arg_parser = parser
+		return self._arg_parser
 
-class Loader(object):
-	pass
+	def run(self):
+		parser = self.arg_parser
+		# parse options --file and --verbose
+		self.args, self.argv = parser.parse_known_args(self.argv)
+		pake.log.set_verbosity(self.args.verbose)
+		parser.add_argument(
+				'-h', '--help', 
+				action='help', default=argparse.SUPPRESS,
+				help=_('show this help message and exit'))
+		self.subparser = parser.add_subparsers(help="taget help", dest="target")
+
+		with pake.PakefileContext(self, self.args.file, None):
+			self.load()
+
+	def load(self, target=None):
+		parser = self.arg_parser
+		pakefile = pake.pakefile
+		path = pakefile.path
+		if not os.path.exists(path):
+			raise PakeError('File "%s" is not exists' % path)
+		directory, file = os.path.split(path)
+		if pakefile.is_root():
+			self.directory = directory
+			if len(self.argv) == 0:
+				target = pakefile.default
+			else:
+				self.args, self.argv = parser.parse_known_args(self.argv, self.args)
+				target = self.args.target
+		else:
+			if target is None:
+				target = pakefile.default
+
+		old_dir = os.getcwd()
+		os.chdir(directory)
+		pake.log.info("-"*70)
+		pake.log.info(">> %s" % directory)
+
+		pakefile.run_task(target)
+
+		pake.log.info("<< %s" % directory)
+		pake.log.info("*"*70)
+		os.chdir(old_dir)
+
+	def cd(self, path, target=None):
+		path = os.path.abspath(path)
+		if not os.path.isdir(path):
+			raise exceptions.PakeError('Directory "%s" is not exists' % path)
+		filepath = os.path.join(path, pake.PAKEFILE_NAME)
+
+		with pake.PakefileContext(self, filepath, pake.pakefile):
+			self.load(target)
+
 

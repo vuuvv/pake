@@ -1,6 +1,11 @@
 import os
 from pake import pakefile
-print pakefile
+
+@task()
+def test(depends, target):
+	print depends
+	cd("src")
+	print target
 #from pake import cc, task, cd
 #
 #src = ['hello.c', 'main.c']

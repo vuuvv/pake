@@ -10,4 +10,4 @@ class PakeError(Exception):
 	pass
 
 from distutils import log
-from pake.context import pakefile
+from pake.context import app, pakefile, PakefileContext

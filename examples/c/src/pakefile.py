@@ -1,6 +1,9 @@
 import os
 from pake import pakefile
-print pakefile
+
+@task(default=True)
+def test(depends, target):
+	print "test"
 #from pake import cc, task
 #
 #src = ['hello.c']
