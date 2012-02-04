@@ -4,6 +4,13 @@ from pake import pakefile
 @task(default=True)
 def test(depends, target):
 	print "test"
+	print test_attr
+	t()
+	print test_attr
+
+def t():
+	global test_attr
+	test_attr = "test attribute 1"
 #from pake import cc, task
 #
 #src = ['hello.c']

@@ -1,6 +1,8 @@
 import os
 from pake import pakefile
 
+test_attr = "test attribute"
+
 @task()
 @option('-t', '--too')
 @option('-b', '--baz')
@@ -8,6 +10,7 @@ def test(depends, target, too, baz):
 	print depends, target
 	cd("src")
 	print too, baz
+	print test_attr
 #from pake import cc, task, cd
 #
 #src = ['hello.c', 'main.c']
