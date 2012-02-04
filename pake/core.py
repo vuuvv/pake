@@ -6,6 +6,7 @@ import os
 import sys
 import argparse
 
+from imp import new_module
 from functools import wraps, partial
 from gettext import gettext as _
 
@@ -41,7 +42,7 @@ class Task(object):
 		helper = partial(func, self.depends, self.target)
 		self.func = wraps(func)(helper)
 		pake.pakefile.add_task(self)
-		return self.target
+		return self
 
 def task(*args, **kwargs):
 	return Task(*args, **kwargs)
@@ -68,7 +69,7 @@ class PakefileNode(object):
 	def __init__(self, path, parent=None):
 		self.__children = []
 		self.__tasks = {}
-		self.module = None
+		self.module = new_module('pakefile')
 		self.default = None
 		self.path = os.path.abspath(path)
 		if parent is not None:
@@ -83,27 +84,38 @@ class PakefileNode(object):
 		node.parent = self
 		self.__children.append(node)
 
-	def add_task(self, task):
-		target = task.target
-		self.__tasks[target] = task
-		if task.default:
+	def add_task(self, t):
+		target = t.target
+		self.__tasks[target] = t
+		if t.default:
 			self.default = target
 
 	def find_task(self, target):
 		node = self
 		while node is not None:
-			t = self.__tasks.get(target, None)
+			t = node.__tasks.get(target, None)
 			if t is not None:
 				return t
 			node = node.parent
+		raise pake.PakeError("Can't find target '%s'" % target)
+
+	def _run_depend(self, target, completed):
+		t = self.find_task(target)
+		for d in t.depends:
+			if d not in completed:
+				completed |= self._run_depend(d, completed)
+		t.func()
+		completed.add(target)
+		return completed
 
 	def run_task(self, target, argv):
-		task = self.find_task(target)
-		func = task.func
-		depends = task.depends
-		for d in depends:
-			self.run(depend)
-		args, argv = task.parser.parse_known_args(argv)
+		t = self.find_task(target)
+		func = t.func
+		complete = set()
+		for d in t.depends:
+			if d not in complete:
+				complete |= self._run_depend(d, complete)
+		args, argv = t.parser.parse_known_args(argv)
 		kwargs = args.__dict__
 		func(**kwargs)
 
@@ -132,6 +144,9 @@ class Application(object):
 					type=int, choices=[0, 1, 2], default=1)
 			self._arg_parser = parser
 		return self._arg_parser
+
+	def _create_root_pakefile(self):
+		pass
 
 	def run(self):
 		parser = self.arg_parser
