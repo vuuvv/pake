@@ -1,4 +1,6 @@
 import os
+import sys
+import imp
 import copy
 import inspect
 from functools import partial
@@ -19,7 +21,13 @@ class PakefileContext(object):
 		"""
 		Load module the path specified.
 		"""
-		module = self.pakefile.module
+		# for native context
+		if self.pakefile.parent is None:
+			m = __import__("pake.builtins")
+			# the m is not the pake.builtins module, so get it from sys.modules
+			return sys.modules['pake.builtins']
+
+		module = imp.new_module('pakefile')
 		self._init_module(module)
 		try:
 			execfile(path, module.__dict__)
@@ -38,10 +46,6 @@ class PakefileContext(object):
 					if inspect.ismodule(v) or isinstance(v, Task):
 						continue
 					setattr(module, name, v)
-		if self.pakefile.is_root():
-			module.task = task
-			module.option = option
-			module.cd = app.cd
 		return module
 
 	def __enter__(self):

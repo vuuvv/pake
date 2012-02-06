@@ -6,7 +6,6 @@ import os
 import sys
 import argparse
 
-from imp import new_module
 from functools import wraps, partial
 from gettext import gettext as _
 
@@ -66,10 +65,10 @@ def option(*args, **kwargs):
 	return Option(*args, **kwargs)
 
 class PakefileNode(object):
-	def __init__(self, path, parent=None):
+	def __init__(self, path=None, parent=None):
 		self.__children = []
 		self.__tasks = {}
-		self.module = new_module('pakefile')
+		self.module = None
 		self.default = None
 		self.path = os.path.abspath(path)
 		if parent is not None:
@@ -120,7 +119,10 @@ class PakefileNode(object):
 		func(**kwargs)
 
 	def is_root(self):
-		return self.parent == None
+		"""
+		Note: root is not the native context, it is the child of native
+		"""
+		return self.parent.parent == None
 
 class Application(object):
 	def __init__(self):
@@ -145,9 +147,6 @@ class Application(object):
 			self._arg_parser = parser
 		return self._arg_parser
 
-	def _create_root_pakefile(self):
-		pass
-
 	def run(self):
 		parser = self.arg_parser
 		# parse options --file and --verbose
@@ -159,8 +158,9 @@ class Application(object):
 				help=_('show this help message and exit'))
 		self.subparser = parser.add_subparsers(help="taget help", dest="target")
 
-		with pake.PakefileContext(self, self.args.file, None):
-			self.load()
+		with pake.PakefileContext(self, None) as native_context:
+			with pake.PakefileContext(self, self.args.file, native_context.pakefile):
+				self.load()
 
 	def load(self, target=None):
 		parser = self.arg_parser
@@ -177,9 +177,7 @@ class Application(object):
 			else:
 				# get the target name in cmd arguments, fake parse
 				args, argv = parser.parse_known_args(self.argv, self.args)
-				#task_kwargs = self.args.__dict__
 				target = args.target
-				#task_kwargs.pop('target')
 		else:
 			if target is None:
 				target = pakefile.default
