@@ -1,2 +1,2 @@
-from pake.core import Application
+from pake.application import Application
 Application().run()

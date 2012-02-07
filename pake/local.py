@@ -137,6 +137,7 @@ class LocalStack(object):
         if rv is None:
             self._local.stack = rv = []
         rv.append(obj)
+        print rv
         return rv
 
     def pop(self):

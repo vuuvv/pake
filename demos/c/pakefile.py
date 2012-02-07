@@ -1,5 +1,4 @@
 import os
-from pake import pakefile
 
 test_attr = "test attribute"
 

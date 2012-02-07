@@ -5,24 +5,63 @@ import copy
 import inspect
 from functools import partial
 
-from pake import PakeError
-from pake.core import task, option, Task, PakefileNode
-from pake.local import LocalStack, LocalProxy
-
-def has_pakefile_context():
-	return _pakefile_ctx_stack.top is not None
+from pake.exceptions import PakeError
+from pake.core import Task
+from pake.globals import _pakefile_ctx_stack, app
+from pake.invoke_chain import EmptyChain, InvokeChain
 
 class PakefileContext(object):
-	def __init__(self, app, path, parent=None):
-		self.pakefile = PakefileNode(path, parent)
+	def __init__(self, app, path=None, parent=None):
 		self.app = app
+		self.tasks = {}
+		self.module = None
+		self.default = None
+		self.path = path
+		self.parent = parent
+
+	def find_task(self, name):
+		node = self
+		while node is not None:
+			t = node.tasks.get(name, None)
+			if t is not None:
+				return t
+			node = node.parent
+		raise PakeError("Can't find target '%s'" % name)
+
+	def add_task(self, task):
+		self.tasks[task.target] = task
+		if task.default:
+			self.default = task.target
+
+	def run_task(self, target):
+		t = self.find_task(target)
+		chain = InvokeChain(t)
+		self._run_prerequisite(t, chain)
+		t.execute(app.argv)
+
+	def _invoke_task(self, target, invoke_chain):
+		t = self.find_task(target)
+		if not t.invoked:
+			chain = invoke_chain.append(t)
+			self._run_prerequisite(t, chain)
+			t.execute()
+
+	def _run_prerequisite(self, t, invoke_chain):
+		for pre in t.prerequisites:
+			self._invoke_task(pre, invoke_chain)
+
+	def is_native(self):
+		return self.parent == None
+
+	def is_root(self):
+		return self.parent.parent == None
 
 	def _load_module(self, path):
 		"""
 		Load module the path specified.
 		"""
 		# for native context
-		if self.pakefile.parent is None:
+		if self.is_native():
 			m = __import__("pake.builtins")
 			# the m is not the pake.builtins module, so get it from sys.modules
 			return sys.modules['pake.builtins']
@@ -37,20 +76,29 @@ class PakefileContext(object):
 		return module
 
 	def _init_module(self, module):
-		parent = self.pakefile.parent
-		if parent is not None:
-			p = parent.module
-			for name in dir(p):
+		print self.parent
+		print self
+		print '$'*70
+		node = self.parent
+		while node is not None:
+			m = node.module
+			for name in dir(m):
 				if not name.startswith('__'):
-					v = getattr(p, name)
+					v = getattr(m, name)
 					if inspect.ismodule(v) or isinstance(v, Task):
 						continue
 					setattr(module, name, v)
+			node = node.parent
+
 		return module
 
 	def __enter__(self):
+		print self.parent
+		print self
+		print '%'*70
+		import pdb;pdb.set_trace()
 		_pakefile_ctx_stack.push(self)
-		self.pakefile.module = self._load_module(self.pakefile.path)
+		self.module = self._load_module(self.path)
 		return self
 
 	def __exit__(self, exc_type, exc_value, tb):
@@ -58,14 +106,4 @@ class PakefileContext(object):
 
 	def __repr__(self):
 		return '<%s of %s>' % (self.__class__.__name__, self.path)
-
-def _lookup_object(name):
-	top = _pakefile_ctx_stack.top
-	if top is None:
-		raise RuntimeError('working outside of request context')
-	return getattr(top, name)
-
-_pakefile_ctx_stack = LocalStack()
-pakefile = LocalProxy(partial(_lookup_object, 'pakefile'))
-app = LocalProxy(partial(_lookup_object, 'app'))
 

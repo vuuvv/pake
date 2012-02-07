@@ -1,5 +1,4 @@
 import os
-from pake import pakefile
 
 @task(default=True)
 def test(depends, target):

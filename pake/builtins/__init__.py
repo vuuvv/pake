@@ -3,9 +3,9 @@ package for buildin tasks
 """
 
 from pake.core import task, option
-from pake.context import app
+from pake.globals import app
 cd = app.cd
 
 @task()
-def ls(depends, target):
+def ls(depends):
 	print 'ls'
