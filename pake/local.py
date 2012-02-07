@@ -21,7 +21,6 @@ except ImportError: # pragma: no cover
     except ImportError: # pragma: no cover
         from dummy_thread import get_ident
 
-
 def release_local(local):
     """Releases the contents of the local for the current context.
     This makes it possible to use locals without a manager.
@@ -137,7 +136,6 @@ class LocalStack(object):
         if rv is None:
             self._local.stack = rv = []
         rv.append(obj)
-        print rv
         return rv
 
     def pop(self):
@@ -152,6 +150,9 @@ class LocalStack(object):
             return stack[-1]
         else:
             return stack.pop()
+
+    def stack(self):
+        return getattr(self._local, 'stack', [])
 
     @property
     def top(self):

@@ -18,4 +18,5 @@ def test(t):
 
 @task()
 def test_next(t):
+	print t.target
 	cd('next', 'next')

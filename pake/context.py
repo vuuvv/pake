@@ -7,25 +7,22 @@ from functools import partial
 
 from pake.exceptions import PakeError
 from pake.core import Task
-from pake.globals import _pakefile_ctx_stack, app
+from pake.globals import _pakefile_ctx_stack, app, context_stack
 from pake.invoke_chain import EmptyChain, InvokeChain
 
 class PakefileContext(object):
-	def __init__(self, app, path=None, parent=None):
+	def __init__(self, app, path=None):
 		self.app = app
 		self.tasks = {}
 		self.module = None
 		self.default = None
 		self.path = path
-		self.parent = parent
 
 	def find_task(self, name):
-		node = self
-		while node is not None:
-			t = node.tasks.get(name, None)
+		for ctx in reversed(context_stack):
+			t = ctx.tasks.get(name, None)
 			if t is not None:
 				return t
-			node = node.parent
 		raise PakeError("Can't find target '%s'" % name)
 
 	def add_task(self, task):
@@ -51,10 +48,10 @@ class PakefileContext(object):
 			self._invoke_task(pre, invoke_chain)
 
 	def is_native(self):
-		return self.parent == None
+		return context_stack.index(self) == 0
 
 	def is_root(self):
-		return self.parent.parent == None
+		return context_stack.index(self) == 1
 
 	def _load_module(self, path):
 		"""
@@ -63,7 +60,7 @@ class PakefileContext(object):
 		# for native context
 		if self.is_native():
 			m = __import__("pake.builtins")
-			# the m is not the pake.builtins module, so get it from sys.modules
+			# the m is not the pake.builtins module,(why), so get it from sys.modules
 			return sys.modules['pake.builtins']
 
 		module = imp.new_module('pakefile')
@@ -76,27 +73,18 @@ class PakefileContext(object):
 		return module
 
 	def _init_module(self, module):
-		print self.parent
-		print self
-		print '$'*70
-		node = self.parent
-		while node is not None:
-			m = node.module
+		for ctx in reversed(context_stack[:-1]):
+			m = ctx.module
 			for name in dir(m):
 				if not name.startswith('__'):
 					v = getattr(m, name)
 					if inspect.ismodule(v) or isinstance(v, Task):
 						continue
 					setattr(module, name, v)
-			node = node.parent
 
 		return module
 
 	def __enter__(self):
-		print self.parent
-		print self
-		print '%'*70
-		import pdb;pdb.set_trace()
 		_pakefile_ctx_stack.push(self)
 		self.module = self._load_module(self.path)
 		return self

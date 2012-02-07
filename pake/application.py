@@ -42,8 +42,8 @@ class Application(object):
 		self.subparser = parser.add_subparsers(help="taget help", dest="target")
 
 		try:
-			with PakefileContext(self) as native:
-				with PakefileContext(self, self.options.file, native):
+			with PakefileContext(self):
+				with PakefileContext(self, self.options.file):
 					self.load()
 		except PakeError, e:
 			log.error("Error: %s" % e.message)
@@ -84,7 +84,7 @@ class Application(object):
 			raise PakeError('Directory "%s" is not exists' % path)
 		filepath = os.path.join(path, PAKEFILE_NAME)
 
-		with PakefileContext(self, filepath, context):
+		with PakefileContext(self, filepath):
 			self.load(target)
 
 
