@@ -10,13 +10,27 @@ from pake.core import Task
 from pake.globals import _pakefile_ctx_stack, app, context_stack
 from pake.invoke_chain import EmptyChain, InvokeChain
 
+def is_file(s):
+	return s.startswith("file:")
+
+def get_file(s):
+	return s.split(":")[1]
+
+def newer(source, target):
+	if not os.path.exists(source) or not os.path.exists(target):
+		return True
+	return os.stat(source).st_mtime > os.stat(target).st_mtime
+
 class PakefileContext(object):
 	def __init__(self, app, path=None):
 		self.app = app
 		self.tasks = {}
+		self.rules = {}
 		self.module = None
 		self.default = None
-		self.path = path
+		self.path = os.path.abspath(path)
+		self.directory = directory = os.path.dirname(self.path)
+		#self.relative_path = directory[directory.index(app.directory):] 
 
 	def find_task(self, name):
 		for ctx in reversed(context_stack):
@@ -44,8 +58,38 @@ class PakefileContext(object):
 			t.execute()
 
 	def _run_prerequisite(self, t, invoke_chain):
+		target = t.target
 		for pre in t.prerequisites:
+			if is_file(target) and is_file(pre):
+				media = os.path.abspath(get_file(pre))
+				tar = os.path.abspath(get_file(target))
+				if newer(media, tar):
+					r = self.match_rule(media)
+					if r is None:
+						self._invoke_task(pre, invoke_chain)
+					else:
+						src = os.path.splitext(media)[0] + '.' + r.source_suffix
+						if newer(src, media):
+							r.func(media, src)
+						else:
+							log.info("'%s' is up to date" % media)
+						continue
+				else:
+					log.info("'%s' is up to date" % tar)
+					continue
 			self._invoke_task(pre, invoke_chain)
+
+	def add_rule(self, rule):
+		self.rules[rule.target_suffix] = rule
+
+	def match_rule(self, filename):
+		name, ext = os.path.splitext(filename)
+
+		for ctx in reversed(context_stack):
+			rule = self.rules.get(ext[1:], None)
+			if rule is not None:
+				return rule
+		return None
 
 	def is_native(self):
 		return context_stack.index(self) == 0

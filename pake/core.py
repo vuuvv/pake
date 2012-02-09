@@ -75,3 +75,14 @@ class Option(object):
 def option(*args, **kwargs):
 	return Option(*args, **kwargs)
 
+class Rule(object):
+	def __init__(self, target_suffix, source_suffix):
+		self.target_suffix = target_suffix[1:]
+		self.source_suffix = source_suffix[1:]
+
+	def __call__(self, func):
+		self.func = func
+		context.add_rule(self)
+
+def rule(target, source):
+	return Rule(target, source)

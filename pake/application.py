@@ -49,7 +49,7 @@ class Application(object):
 			log.error("Error: %s" % e.message)
 
 	def load(self, target=None):
-		path = os.path.abspath(context.path)
+		path = context.path
 		if not os.path.exists(path):
 			raise PakeError('File "%s" is not exists' % path)
 		directory, file = os.path.split(path)
