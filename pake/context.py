@@ -73,7 +73,7 @@ class PakefileContext(object):
 							r.func(media, src)
 						else:
 							log.info("'%s' is up to date" % media)
-						continue
+					continue
 				else:
 					log.info("'%s' is up to date" % tar)
 					continue
