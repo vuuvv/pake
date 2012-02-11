@@ -7,7 +7,7 @@ import sys
 python_exe = os.path.join(sys.prefix, "python.exe")
 pake_bat = '"%s" "%s"' % (python_exe, os.path.join(sys.prefix, "Scripts", "pake"))
 pake = """#!%s
-from pake.core import Application
+from pake.application import Application
 Application().run()
 """ % python_exe
 
@@ -23,7 +23,8 @@ def create_pake():
 	f.write(pake)
 	f.close()
 
-
+if not os.path.isdir('bin'):
+	os.mkdir('bin')
 create_pake_bat()
 create_pake()
 

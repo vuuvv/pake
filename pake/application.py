@@ -23,7 +23,7 @@ class Application(object):
 				prog="pake", add_help=False)
 		parser.add_argument(
 				'-f', '--file', 
-				type=str, default=PAKEFILE_NAME, 
+				type=str, default=None, 
 				help='specified a pakefile')
 		parser.add_argument(
 				'-v', '--verbose', 
@@ -42,23 +42,32 @@ class Application(object):
 		self.subparser = parser.add_subparsers(help="taget help", dest="target")
 
 		try:
+			# load native context
 			with PakefileContext(self):
-				with PakefileContext(self, self.options.file):
+				file = self.options.file
+				if file is None:
+					if os.path.isfile(PAKEFILE_NAME):
+						file = PAKEFILE_NAME
+					else:
+						self.load()
+						return
+				# load root context
+				with PakefileContext(self, file):
 					self.load()
 		except PakeError, e:
 			log.error("Error: %s" % e.message)
 
 	def load(self, target=None):
-		path = context.path
-		if not os.path.exists(path):
-			raise PakeError('File "%s" is not exists' % path)
-		directory, file = os.path.split(path)
+		directory = context.directory
 
-		if context.is_root():
+		if context.is_native() or context.is_root():
 			self.directory = directory
 			if len(self.argv) == 0:
 				# pake not specify the task name, use the default
 				target = context.default
+				if target is None:
+					self.arg_parser.print_help()
+					self.arg_parser.exit()
 			else:
 				# get the target name in cmd arguments, fake parse
 				options, argv = self.arg_parser.parse_known_args(self.argv, self.options)

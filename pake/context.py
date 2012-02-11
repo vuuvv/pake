@@ -28,9 +28,20 @@ class PakefileContext(object):
 		self.rules = {}
 		self.module = None
 		self.default = None
-		self.path = os.path.abspath(path)
-		self.directory = directory = os.path.dirname(self.path)
-		#self.relative_path = directory[directory.index(app.directory):] 
+		self._set_path(path)
+
+	def _set_path(self, path):
+		# path is None mean native context
+		if path is not None:
+			if os.path.isfile(path):
+				self.path = os.path.abspath(path)
+				self.directory = os.path.dirname(self.path)
+				#self.relative_path = directory[directory.index(app.directory):] 
+			else:
+				raise PakeError('File "%s" is not exists' % path)
+		else:
+			self.path = None
+			self.directory = os.path.abspath(path)
 
 	def find_task(self, name):
 		for ctx in reversed(context_stack):
@@ -103,8 +114,9 @@ class PakefileContext(object):
 		"""
 		# for native context
 		if self.is_native():
-			m = __import__("pake.builtins")
-			# the m is not the pake.builtins module,(why), so get it from sys.modules
+			__import__("pake.builtins")
+			# the return value of __import__ function is not the pake.builtins module,(why), 
+			# so get it from sys.modules
 			return sys.modules['pake.builtins']
 
 		module = imp.new_module('pakefile')

@@ -16,7 +16,7 @@ def d3(t):
 def test(t):
 	print t.target,
 
-@task()
+@task(default=True)
 def test_next(t):
 	print t.target
 	cd('next', 'next')
